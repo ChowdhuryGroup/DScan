@@ -1,4 +1,4 @@
-Matlab code used to process and retrieve pulse
+Matlab code used to process and retrieve pulse (Original code from Noah Talisa)
 
 if using BK7 Wedges, use DScan_DE_5.m
 
