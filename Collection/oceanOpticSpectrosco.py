@@ -201,7 +201,7 @@ class ocean:
         
 
     def setinttime(self,num):
-
+        """Set integration time in milliseconds. Default is 100 milliseconds."""
         num=num*1000
 
         self.spec.integration_time_micros(num);

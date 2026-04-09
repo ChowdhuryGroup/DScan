@@ -30,7 +30,9 @@ class smc100:
         command= str('1PA' + str(position) + '\r\n').encode()
         self.ser.write(command)
         
-    def wait_till_done(self):
+    def wait_till_done(self,verbose=False):
+        if verbose:
+            print("Waiting for stage to finish moving...")
         while self.is_moving():
             time.sleep(.05)
     
