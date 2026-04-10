@@ -27,11 +27,22 @@ except:
 
 
 comPort = 'COM14'
+
+minPosition = 17.5
+maxPosition = 19.4
+numberPositions = 63 #use (2^n)-1
+spectrometerIntegrationTime = 150 #ms
+spectrums_to_average = 1
+
 stage = newfocusStage.smc100(comPort)
+spectrum.setinttime(spectrometerIntegrationTime)
 
 if input("capture background and fundamental? y/n: ") == "y":
     input("press enter to capture background: ")
-    background = spectrum.getspec()
+    background = np.empty_like(spectrum.getspec())
+    for _ in range(spectrums_to_average):
+        background += spectrum.getspec()
+    background = background / spectrums_to_average
     plt.ion()
     plt.figure(1)
     plt.plot(background[0],background[1])
@@ -39,11 +50,14 @@ if input("capture background and fundamental? y/n: ") == "y":
 
 
     save = "n"
-    fundamental = []
+    fundamental = np.empty_like(spectrum.getspec())
 
     while save != "y":
         input("press enter to capture fundamental: ")
-        fundamental = list(spectrum.getspec())
+        for _ in range(spectrums_to_average):
+             fundamental += spectrum.getspec()
+             #time.sleep(spectrometerIntegrationTime/1000)
+        fundamental = fundamental / spectrums_to_average
         plt.figure(2)
         plt.clf()
         plt.plot(fundamental[0],fundamental[1])
@@ -56,13 +70,10 @@ if input("capture background and fundamental? y/n: ") == "y":
 
 input("begin dscan press enter: ")
 
-minPosition = 18
-maxPosition = 18.92
-numberPositions = 127 #use (2^n)-1
-spectrometerIntegrationTime = 100 #ms
+
 stepSize = (maxPosition-minPosition)/numberPositions
 positions = np.arange(minPosition,maxPosition+stepSize,stepSize)
-spectrum.setinttime(spectrometerIntegrationTime)
+
 
 wavelengths = []
 intensities = []
@@ -72,9 +83,13 @@ for pos in pbar:
     stage.wait_till_done()
     pbar.set_description(f"Pos(mm): {pos:.3f}")
     time.sleep(.01)
-    data = spectrum.getspec()
-    wavelengths.append(data[0])
-    intensities.append(data[1])
+    total_spectrum = np.zeros_like(spectrum.getspec())
+
+    for _ in range(spectrums_to_average):
+        total_spectrum += spectrum.getspec()
+    total_spectrum = total_spectrum / spectrums_to_average
+    wavelengths.append(total_spectrum[0])
+    intensities.append(total_spectrum[1])
 
 plt.ioff()
 plt.figure(3)
@@ -84,42 +99,56 @@ plt.pcolormesh(wls, poss, intensities)
 plt.xlim((350,450))
 plt.show()
 
-# --- Extract ridge (max intensity at each position) ---
-wavelengths_arr = np.array(wavelengths)
-intensities_arr = np.array(intensities)
+while True:
+    # --- Show plot and collect clicks ---
+    plt.figure(5)
+    plt.pcolormesh(wls, poss, intensities)
+    plt.xlim((350, 450))
+    plt.title("Click TWO points to define slope")
+    plt.xlabel("Wavelength (nm)")
+    plt.ylabel("Position (mm)")
 
-ridge_wavelengths = []
-left_index = np.abs(wavelengths_arr[0] - 350).argmin()
-right_index = np.abs(wavelengths_arr[0] - 450).argmin()
-for i in range(len(intensities_arr)):
-    idx_max = np.argmax(intensities_arr[i][left_index:right_index]) + left_index
-    ridge_wavelengths.append(wavelengths_arr[i][idx_max])
+    points = plt.ginput(2, timeout=-1)
+    plt.close()
 
-ridge_wavelengths = np.array(ridge_wavelengths)
-positions_arr = np.array(positions)
-left_index = ridge_wavelengths.argmin()
-right_index = ridge_wavelengths.argmax()
-ridge_wavelengths = ridge_wavelengths[left_index:right_index]
-positions_arr = positions_arr[left_index:right_index]
-# --- Fit line (position vs wavelength) ---
-coeffs = np.polyfit(positions_arr, ridge_wavelengths, 1)
-slope = coeffs[0]
-intercept = coeffs[1]
+    # Make sure user actually clicked twice
+    if len(points) < 2:
+        print("You didn't select two points. Try again.")
+        continue
 
-print(f"Slope (nm/mm): {slope:.6f}")
+    (x1, y1), (x2, y2) = points
 
-# --- Generate fitted line ---
-fit_line = slope * positions_arr + intercept
+    # Avoid divide-by-zero
+    if y2 == y1:
+        print("Points have same position (vertical line). Try again.")
+        continue
 
-# --- Plot result ---
-plt.figure(4)
-plt.plot(positions_arr, ridge_wavelengths, 'o', label="Extracted ridge")
-plt.plot(positions_arr, fit_line, '-', label=f"Fit (slope={slope:.4f})")
-plt.xlabel("Position (mm)")
-plt.ylabel("Wavelength (nm)")
-plt.title("Streak Linear Fit")
-plt.legend()
-plt.show()
+    slope = (y2-y1)/(x2-x1)
+
+    print(f"\nSelected points:")
+    print(f"  Point 1: (λ={x1:.3f} nm, pos={y1:.3f} mm)")
+    print(f"  Point 2: (λ={x2:.3f} nm, pos={y2:.3f} mm)")
+    print(f"Slope (mm/nm): {slope:.6f}")
+
+    # --- Show preview ---
+    plt.figure(6)
+    plt.pcolormesh(wls, poss, intensities)
+    plt.scatter([x1, x2], [y1, y2], color='red')
+
+    plt.plot([x1, x2], [y1, y2], 'r--', label=f"Slope={slope:.4f}")
+    plt.xlim((350, 450))
+    plt.xlabel("Wavelength (nm)")
+    plt.ylabel("Position (mm)")
+    plt.legend()
+    plt.title("Preview (close window to continue)")
+    plt.show()
+
+    # --- Ask user if they want to keep it ---
+    user_input = input("Accept this slope? (y/n): ").strip().lower()
+    if user_input == 'y':
+        break
+
+print(f"\nFinal slope (nm/mm): {slope:.6f}")
 
 print("Scan Done!")
 spectrum.close()
