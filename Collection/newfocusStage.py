@@ -41,8 +41,8 @@ class smc100:
         
 
 if __name__ == "__main__":
-    t = smc100("COM1")
-    t.move_absolute(12.4) #13.5 best
+    t = smc100("COM14")
+    t.move_absolute(18.49) #13.5 best
     while t.is_moving():
         print(str(t.get_position()))
         time.sleep(2)
