@@ -19,7 +19,7 @@ import serial as s
 import seabreeze.spectrometers as sb #library for OceanOptics 
 
 import time
-
+import matplotlib.pyplot as plt
 
 
 
@@ -208,8 +208,25 @@ class ocean:
 
         return
 
+    def liveviewplot(self,fig_title="Live Spectrum"):
+        plt.ion()
+        fig, ax = plt.subplots()
+        running = [True]
 
+        fig.canvas.mpl_connect('key_press_event',
+                            lambda e: running.__setitem__(0, False) if e.key == 'q' else None)
+        fig.canvas.mpl_connect('close_event',
+                            lambda e: running.__setitem__(0, False))
 
+        while running[0] and plt.fignum_exists(fig.number):
+            spec = self.getspec()
+            ax.clear()
+            ax.set_title(f"{fig_title} (press 'q' to continue)")
+            ax.plot(spec[0], spec[1])
+            ax.set_ylim(0, 16000)
+            plt.pause(0.05)
+
+        plt.close(fig)
     
 
     def getspec(self):
@@ -224,7 +241,11 @@ class ocean:
 
               
 
-        
+if __name__ == "__main__":
+    sernum = 'HR4P0326' #serial number of spectrometer
+    spectrum = ocean(sernum)
+    spectrum.setinttime(200)
+    spectrum.liveviewplot()
 
           
 

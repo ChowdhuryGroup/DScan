@@ -30,7 +30,7 @@ comPort = 'COM14'
 
 minPosition = 17.5
 maxPosition = 19.4
-numberPositions = 63 #use (2^n)-1
+numberPositions = 100 #use (2^n)-1
 spectrometerIntegrationTime = 150 #ms
 spectrums_to_average = 1
 
@@ -38,7 +38,8 @@ stage = newfocusStage.smc100(comPort)
 spectrum.setinttime(spectrometerIntegrationTime)
 
 if input("capture background and fundamental? y/n: ") == "y":
-    input("press enter to capture background: ")
+    spectrum.liveviewplot(fig_title="Capture background")
+    #input("press enter to capture background: ")
     background = np.empty_like(spectrum.getspec())
     for _ in range(spectrums_to_average):
         background += spectrum.getspec()
@@ -50,10 +51,11 @@ if input("capture background and fundamental? y/n: ") == "y":
 
 
     save = "n"
-    fundamental = np.empty_like(spectrum.getspec())
+    
 
     while save != "y":
-        input("press enter to capture fundamental: ")
+        fundamental = np.empty_like(spectrum.getspec())
+        spectrum.liveviewplot(fig_title="Capture fundamental")
         for _ in range(spectrums_to_average):
              fundamental += spectrum.getspec()
              #time.sleep(spectrometerIntegrationTime/1000)
@@ -68,7 +70,7 @@ if input("capture background and fundamental? y/n: ") == "y":
 
 
 
-input("begin dscan press enter: ")
+spectrum.liveviewplot(fig_title="Ready for scan")
 
 
 stepSize = (maxPosition-minPosition)/numberPositions
