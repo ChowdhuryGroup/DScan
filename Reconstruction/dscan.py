@@ -4,6 +4,8 @@ from scipy.interpolate import interp1d
 from tqdm import tqdm
 import csv
 
+_EPS = 1e-30  # small guard against division by zero
+
 
 class DScanLoader:
     """Load raw DScan TSV output from dscanner.py."""
@@ -17,7 +19,7 @@ class DScanLoader:
         self.background  = None
         if bg_filepath:
             bg, _ = self._parse(bg_filepath)
-            self.background = bg[1]      # (Nlambda,)
+            self.background = bg[1, :]     # (Nlambda,)
 
     @staticmethod
     def _parse(path):
@@ -140,10 +142,11 @@ class DERetrieval:
         self.phase_mat  = np.exp(1j * z[None, :] * (
             0.5 * self.GVD * w[:, None] ** 2
             + (1 / 6) * self.TOD * w[:, None] ** 3))
-        self.freqs  = freqs
-        self.z      = z
-        self.Nsamps = Nsamps
-        self.t      = (np.arange(Nsamps) - Nsamps // 2) / (2 * freqs.max())  # fs
+        self.freqs     = freqs
+        self.z         = z
+        self.positions = proc.positions
+        self.Nsamps    = Nsamps
+        self.t         = (np.arange(Nsamps) - Nsamps // 2) / (2 * freqs.max())  # fs
 
     # ------------------------------------------------------------------
     def _g_batch(self, phases):
@@ -157,7 +160,7 @@ class DERetrieval:
         sim  = np.abs(np.fft.ifft(ft ** 2, axis=0)) ** 2   # (Nsamps, K, Nz)
         sim  = sim.transpose(1, 2, 0)                        # (K, Nz, Nsamps)
         meas = self.dscan_meas                               # (Nz, Nsamps)
-        mu   = np.sum(meas * sim, axis=1) / (np.sum(sim ** 2, axis=1) + 1e-30)
+        mu   = np.sum(meas * sim, axis=1) / (np.sum(sim ** 2, axis=1) + _EPS)
         diff = meas - mu[:, None, :] * sim
         return np.sqrt(np.mean(diff ** 2, axis=(1, 2)))      # (K,)
 
@@ -253,7 +256,7 @@ class DERetrieval:
         self.fund_spec_norm   = np.abs(self.Espec) ** 2 / np.abs(self.Espec).max() ** 2
 
         print(f"Best compression at z = {z[zi]:.3f} mm  "
-              f"(stage pos ≈ {self.z[zi] + self.z[zi//2]:.3f} mm)")
+              f"(stage pos = {self.positions[zi]:.3f} mm)")
 
     # ------------------------------------------------------------------
     def plot_results(self):
